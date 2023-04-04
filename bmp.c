@@ -7,6 +7,7 @@ BMPFile* readBMP(const char* path) {
     FILE *inputFile = fopen(path, "rb");
     if (inputFile == NULL) {
         printf("Error: Failed to open input file.");
+        free(bmp);
         return NULL;
     }
     fread(&bmp->header, sizeof(BMPHeader), 1, inputFile);
@@ -16,10 +17,14 @@ BMPFile* readBMP(const char* path) {
     printf("%d\n", bpp);
     if(bpp != 1 && bpp != 2 && bpp != 8 && bpp != 24) {
         printf("Error: This BMP not supported.");
+        free(bmp);
+        fclose(inputFile);
         return NULL;
     }
     if(bmp->header.compression) {
         printf("Error: Compression not supported.");
+        free(bmp);
+        fclose(inputFile);
         return NULL;
     }
     bmp->pixels = malloc(sizeof(Pixel *) * height);
@@ -53,7 +58,7 @@ BMPFile* readBMP(const char* path) {
     return bmp;
 }
 
-void writeBMP(const char* path, BMPFile* bmp) {
+void writeBMP(const char* path, const BMPFile* bmp) {
     FILE* outputFile = fopen(path, "wb");
     if (outputFile == NULL) {
         printf("Error: Failed to open output file.");
@@ -94,7 +99,7 @@ void writeBMP(const char* path, BMPFile* bmp) {
     fclose(outputFile);
 }
 
-void invert_colors(BMPFile *image)
+void invert_colors(const BMPFile *image)
 {
     int width = image->header.width;
     int height = image->header.height;
@@ -111,7 +116,7 @@ void invert_colors(BMPFile *image)
     }
 }
 
-void black_white_colors(BMPFile *image)
+void black_white_colors(const BMPFile *image)
 {
     int width = image->header.width;
     int height = image->header.height;
@@ -137,7 +142,7 @@ int compare_uint8_t(const void *a, const void *b)
     return (*aa > *bb) - (*aa < *bb);
 }
 
-void median_filter(BMPFile *image, int window_size)
+void median_filter(const BMPFile *image, int window_size)
 {
     // make sure window size is odd
     if (window_size % 2 == 0)
@@ -189,7 +194,9 @@ void median_filter(BMPFile *image, int window_size)
         for (int j = pad; j < width + pad; j++)
         {
             // get values in the window
-            uint8_t r[window_size * window_size], g[window_size * window_size], b[window_size * window_size];
+            uint8_t r[window_size * window_size];
+            uint8_t g[window_size * window_size];
+            uint8_t b[window_size * window_size];
             int k = 0;
             for (int ii = -pad; ii <= pad; ii++)
             {
@@ -247,18 +254,18 @@ double pow(double base, double exponent)
     }
 }
 
-void gamma_correction(BMPFile *image, double gamma)
+void gamma_correction(const BMPFile *image, double gamma)
 {
-    int width = image->header.width;
-    int height = image->header.height;
+    uint32_t width = image->header.width;
+    uint32_t height = image->header.height;
     double inv_gamma = 1.0 / gamma;
     for (int i = 0; i < height; i++)
     {
         for (int j = 0; j < width; j++)
         {
-            uint8_t r = pow(image->pixels[i][j].red / 255.0, inv_gamma) * 255.0;
-            uint8_t g = pow(image->pixels[i][j].green / 255.0, inv_gamma) * 255.0;
-            uint8_t b = pow(image->pixels[i][j].blue / 255.0, inv_gamma) * 255.0;
+            uint8_t r = (uint8_t)(pow(image->pixels[i][j].red / 255.0, inv_gamma) * 255.0);
+            uint8_t g = (uint8_t)(pow(image->pixels[i][j].green / 255.0, inv_gamma) * 255.0);
+            uint8_t b = (uint8_t)(pow(image->pixels[i][j].blue / 255.0, inv_gamma) * 255.0);
             image->pixels[i][j].red = r;
             image->pixels[i][j].green = g;
             image->pixels[i][j].blue = b;

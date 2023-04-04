@@ -30,7 +30,7 @@ int main() {
         return EXIT_FAILURE;
     }
     double gamma;
-    double median;
+    int median;
     switch(filter) {
         case 1:
             invert_colors(bmp);
@@ -49,12 +49,14 @@ int main() {
             break;
         case 4:
             printf("Enter median value: ");
-            while(!scanf("%lf", &median) || median < 0.0) {
-                printf("Invalid median! Valid median >0.0\n");
+            while(!scanf("%d", &median) || median <= 0) {
+                printf("Invalid median! Valid median >0\n");
                 rewind(stdin);
                 printf("Enter median value: ");
             }
             median_filter(bmp, median);
+            break;
+        default:
             break;
     }
     writeBMP(output, bmp);

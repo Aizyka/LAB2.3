@@ -1,5 +1,5 @@
 #include <stdint.h>
-#pragma pack(push, 1)
+#pragma pack(1)
 typedef struct BMPHeader {
     uint16_t type;
     uint32_t fileSize;

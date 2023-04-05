@@ -2,6 +2,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#define BITS_1 1
+#define BITS_2 2
+#define BITS_4 4
+#define BITS_8 8
+#define BITS_16 16
+#define BITS_24 24
+#define COLORTABLE_SIZE 1024
+
 BMPFile* readBMP(const char* path) {
     BMPFile* bmp = malloc(sizeof(BMPFile));
     FILE *inputFile = fopen(path, "rb");
@@ -15,7 +23,7 @@ BMPFile* readBMP(const char* path) {
     int height = bmp->header.height;
     int bpp = bmp->header.bitsPerPixel;
     printf("%d\n", bpp);
-    if(bpp != 1 && bpp != 2 && bpp != 8 && bpp != 24) {
+    if(bpp != BITS_1 && bpp != BITS_2 && bpp != BITS_4 && bpp != BITS_8 && bpp != BITS_24) {
         printf("Error: This BMP not supported.");
         free(bmp);
         fclose(inputFile);
@@ -31,7 +39,7 @@ BMPFile* readBMP(const char* path) {
     for (int i = 0; i < height; i++) {
         bmp->pixels[i] = malloc(sizeof(Pixel) * width);
     }
-    if (bpp == 1 || bpp == 2 || bpp == 8) {
+    if (bpp == BITS_1 || bpp == BITS_2 || bpp == BITS_4 || bpp == BITS_8) {
         int padding = (4 - ((width * bpp / 8) % 4)) % 4;
         fread(bmp->palette, sizeof(unsigned char), 1024, inputFile);
         for (int i = height - 1; i >= 0; i--) {
@@ -42,10 +50,11 @@ BMPFile* readBMP(const char* path) {
                 bmp->pixels[i][j].green = pixel;
                 bmp->pixels[i][j].blue = pixel;
             }
-            fseek(inputFile, padding, SEEK_CUR);
+            if(bmp->header.bitsPerPixel == 8)
+                fseek(inputFile, padding, SEEK_CUR);
         }
     }
-    else if(bpp == 24) {
+    else if(bpp == BITS_24) {
         uint32_t offset = bmp->header.offset;
         fseek(inputFile, offset, SEEK_SET);
         for (int i = 0; i < height; i++) {
@@ -71,7 +80,7 @@ void writeBMP(const char* path, const BMPFile* bmp) {
     fwrite(&bmp->header, sizeof(BMPHeader), 1, outputFile);
 
     // Write palette if present
-    if (bpp == 1 || bpp == 2 || bpp == 8) {
+    if (bpp == BITS_1 || bpp == BITS_2 || bpp == BITS_4 || bpp == BITS_8) {
         int padding = (4 - ((width * bpp / 8) % 4)) % 4;
         fwrite(bmp->palette, sizeof(unsigned char), 1024, outputFile);
         // Write pixel data to output file
@@ -79,13 +88,14 @@ void writeBMP(const char* path, const BMPFile* bmp) {
             for (int j = 0; j < width; j++) {
                 unsigned  char pixel = bmp->pixels[i][j].red;
                 fwrite(&pixel, sizeof(unsigned char), 1, outputFile);
-            }
-            for (int j = 0; j < padding; j++) {
-                fputc(0x00, outputFile);
+            }if(bmp->header.bitsPerPixel == 8) {
+                for (int j = 0; j < padding; j++) {
+                    fputc(0x00, outputFile);
+                }
             }
         }
     }
-    else if(bpp == 24) {
+    else if(bpp == BITS_24) {
         for (int i = 0; i < height; i++) {
             for (int j = 0; j < width; j++) {
                 fwrite(&bmp->pixels[i][j], sizeof(Pixel), 1, outputFile);
@@ -99,37 +109,54 @@ void writeBMP(const char* path, const BMPFile* bmp) {
     fclose(outputFile);
 }
 
-void invert_colors(const BMPFile *image)
+void invert_colors(BMPFile *image)
 {
     int width = image->header.width;
     int height = image->header.height;
-    for (int i = 0; i < height; i++)
-    {
-        for (int j = 0; j < width; j++)
+    if(image->header.bitsPerPixel == BITS_24) {
+        for (int i = 0; i < height; i++)
         {
-            Pixel pixel = image->pixels[i][j];
-            pixel.red = 255 - pixel.red;
-            pixel.green = 255 - pixel.green;
-            pixel.blue = 255 - pixel.blue;
-            image->pixels[i][j] = pixel;
+            for (int j = 0; j < width; j++)
+            {
+                Pixel pixel = image->pixels[i][j];
+                pixel.red = 255 - pixel.red;
+                pixel.green = 255 - pixel.green;
+                pixel.blue = 255 - pixel.blue;
+                image->pixels[i][j] = pixel;
+            }
+        }
+    }
+    else {
+        for(int i = 0; i < COLORTABLE_SIZE; i++) {
+            image->palette[i] = 255 - image->palette[i];
         }
     }
 }
 
-void black_white_colors(const BMPFile *image)
+void black_white_colors(BMPFile *image)
 {
     int width = image->header.width;
     int height = image->header.height;
-    for (int i = 0; i < height; i++)
-    {
-        for (int j = 0; j < width; j++)
+    if(image->header.bitsPerPixel == BITS_24) {
+        for (int i = 0; i < height; i++)
         {
-            Pixel pixel = image->pixels[i][j];
-            uint8_t gray = (pixel.red + pixel.green + pixel.blue) / 3;
-            pixel.red = gray;
-            pixel.green = gray;
-            pixel.blue = gray;
-            image->pixels[i][j] = pixel;
+            for (int j = 0; j < width; j++)
+            {
+                Pixel pixel = image->pixels[i][j];
+                uint8_t gray = (pixel.red + pixel.green + pixel.blue) / 3;
+                pixel.red = gray;
+                pixel.green = gray;
+                pixel.blue = gray;
+                image->pixels[i][j] = pixel;
+            }
+        }
+    }
+    else {
+        for(int i = 0; i < COLORTABLE_SIZE/3; i+=3) {
+            uint8_t gray = (image->palette[i] + image->palette[i+1] + image->palette[i+2]) / 3;
+            image->palette[i] = gray;
+            image->palette[i+1] = gray;
+            image->palette[i+2] = gray;
         }
     }
 }
